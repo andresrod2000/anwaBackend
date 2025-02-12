@@ -20,7 +20,7 @@ This repository contains the backend for the comprehensive restaurant management
 
 1. Clone this repository:
    ```bash
-   git clone https://github.com/yourusername/anwa-solutions-backend.git
+   git clone https://github.com/andresrod2000/anwaBackend.git
    cd anwa-solutions-backend
    ```
 
