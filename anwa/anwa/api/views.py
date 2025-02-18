@@ -2,7 +2,6 @@ from rest_framework import viewsets
 from .models import (
     Usuario,
     Roles,
-    UsuarioRol,
     Inventario,
     Categorias,
     Movimiento,
@@ -12,7 +11,6 @@ from .models import (
 from .serializers import (
     UsuarioSerializer,
     RolesSerializer,
-    UsuarioRolSerializer,
     InventarioSerializer,
     CategoriasSerializer,
     MovimientoSerializer,
@@ -30,9 +28,6 @@ class UsuarioViewSet(viewsets.ModelViewSet):
     serializer_class = UsuarioSerializer
 
 
-class UsuarioRolViewSet(viewsets.ModelViewSet):
-    queryset = UsuarioRol.objects.all()
-    serializer_class = UsuarioRolSerializer
 
 
 class CategoriasViewSet(viewsets.ModelViewSet):
