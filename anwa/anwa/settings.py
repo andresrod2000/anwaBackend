@@ -59,6 +59,11 @@ REST_FRAMEWORK = {
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
 }
+
+CSRF_TRUSTED_ORIGINS = [
+    "https://anwabackend.duckdns.org"
+]
+
 CORS_ALLOW_ALL_ORIGINS = True
 
 ROOT_URLCONF = 'anwa.urls'
