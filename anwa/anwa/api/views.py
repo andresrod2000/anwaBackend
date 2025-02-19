@@ -1,4 +1,6 @@
-from rest_framework import viewsets
+from rest_framework import viewsets, permissions
+from rest_framework.response import Response
+from rest_framework.decorators import action
 from .models import (
     Usuario,
     Roles,
@@ -26,6 +28,14 @@ class RolesViewSet(viewsets.ModelViewSet):
 class UsuarioViewSet(viewsets.ModelViewSet):
     queryset = Usuario.objects.all()
     serializer_class = UsuarioSerializer
+    permission_classes = [permissions.IsAuthenticated]  # Solo usuarios autenticados
+
+    @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
+    def perfil(self, request):
+        """Devuelve los datos del usuario autenticado"""
+        usuario = request.user  # Obtiene el usuario autenticado
+        serializer = UsuarioSerializer(usuario)
+        return Response(serializer.data)
 
 
 

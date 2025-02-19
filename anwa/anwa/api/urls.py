@@ -21,4 +21,6 @@ router.register(r'transacciones', TransaccionViewSet)
 
 urlpatterns = [
     path('', include(router.urls)),
+    path('user/', UsuarioViewSet.as_view({'get': 'perfil'}), name='user_profile'),  # Nueva ruta para obtener el usuario autenticado
 ]
+
