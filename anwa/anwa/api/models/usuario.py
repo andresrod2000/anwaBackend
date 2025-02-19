@@ -15,9 +15,9 @@ class UsuarioManager(BaseUserManager):
         usuario.save(using=self._db)
         return usuario
 
-    def create_superuser(self, correo, nombre, contrasena):
+    def create_superuser(self, correo, nombre, password=None):
         """Crea un superusuario con todos los permisos"""
-        usuario = self.create_user(correo, nombre, contrasena)
+        usuario = self.create_user(correo, nombre, password)
         usuario.is_staff = True
         usuario.is_superuser = True
         usuario.save(using=self._db)
