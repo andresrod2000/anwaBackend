@@ -58,7 +58,12 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.IsAuthenticated',  # Asegura autenticación
+        'rest_framework.permissions.DjangoModelPermissions',  # Restringe acceso sin permisos
+    ),
 }
+
 
 CSRF_TRUSTED_ORIGINS = [
     "https://anwabackend.duckdns.org"
