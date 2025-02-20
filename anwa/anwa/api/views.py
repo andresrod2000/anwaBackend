@@ -30,7 +30,7 @@ class UsuarioViewSet(viewsets.ModelViewSet):
     serializer_class = UsuarioSerializer
     permission_classes = [permissions.DjangoModelPermissions] 
 
-    @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated, permissions.DjangoModelPermissions])
+    @action(detail=False, methods=['get'], permission_classes=[permissions.DjangoModelPermissions])
     def perfil(self, request):
         """Devuelve los datos del usuario autenticado"""
         usuario = request.user  # Obtiene el usuario autenticado
