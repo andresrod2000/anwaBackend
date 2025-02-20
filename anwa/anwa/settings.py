@@ -59,7 +59,7 @@ REST_FRAMEWORK = {
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': (
-        'rest_framework.permissions.IsAuthenticated',  # Asegura autenticación
+       # 'rest_framework.permissions.IsAuthenticated',  # Asegura autenticación
         'rest_framework.permissions.DjangoModelPermissions',  # Restringe acceso sin permisos
     ),
 }
