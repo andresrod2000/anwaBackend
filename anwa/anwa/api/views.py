@@ -28,7 +28,7 @@ class RolesViewSet(viewsets.ModelViewSet):
 class UsuarioViewSet(viewsets.ModelViewSet):
     queryset = Usuario.objects.all()
     serializer_class = UsuarioSerializer
-    permission_classes = [permissions.IsAuthenticated]  # Solo usuarios autenticados
+    permission_classes = [permissions.DjangoModelPermissions] 
 
     @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated, permissions.DjangoModelPermissions])
     def perfil(self, request):
