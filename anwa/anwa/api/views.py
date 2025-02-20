@@ -42,15 +42,16 @@ class UsuarioViewSet(viewsets.ModelViewSet):
     serializer_class = UsuarioSerializer
     permission_classes = [StrictDjangoModelPermissions] 
 
-    @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
+class PerfilViewSet(viewsets.ViewSet):
+    permission_classes = [permissions.IsAuthenticated]  # 🔹 Permite acceso solo a usuarios autenticados
+
+    @action(detail=False, methods=['get'])
     def perfil(self, request):
         """Devuelve los datos del usuario autenticado"""
-        usuario = request.user  # Obtiene el usuario autenticado
+        print(f"🔍 Intento de acceso a /user/ por: {request.user}")
+        usuario = request.user
         serializer = UsuarioSerializer(usuario)
         return Response(serializer.data)
-
-
-
 
 
 class CategoriasViewSet(viewsets.ModelViewSet):

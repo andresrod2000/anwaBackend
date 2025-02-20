@@ -8,6 +8,7 @@ from .views import (
     MovimientoViewSet,
     DocumentoViewSet,
     TransaccionViewSet,
+    PerfilViewSet,
 )
 
 router = DefaultRouter()
@@ -21,6 +22,6 @@ router.register(r'transacciones', TransaccionViewSet)
 
 urlpatterns = [
     path('', include(router.urls)),
-    path('user/', UsuarioViewSet.as_view({'get': 'perfil'}), name='user_profile'),  # Nueva ruta para obtener el usuario autenticado
+    path('user/', PerfilViewSet.as_view({'get': 'perfil'}), name='user_profile'),  # Nueva ruta para obtener el usuario autenticado
 ]
 
