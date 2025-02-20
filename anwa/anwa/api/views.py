@@ -24,11 +24,23 @@ class RolesViewSet(viewsets.ModelViewSet):
     queryset = Roles.objects.all()
     serializer_class = RolesSerializer
 
+class StrictDjangoModelPermissions(permissions.DjangoModelPermissions):
+    """
+    Versión más estricta de DjangoModelPermissions que bloquea usuarios sin permisos asignados.
+    """
+    def has_permission(self, request, view):
+        if not request.user.is_authenticated:
+            return False  # 🔹 Bloquea usuarios no autenticados
+
+        if not request.user.user_permissions.exists() and not request.user.groups.exists():
+            return False  # 🔹 Bloquea usuarios sin permisos asignados
+
+        return super().has_permission(request, view)
 
 class UsuarioViewSet(viewsets.ModelViewSet):
     queryset = Usuario.objects.all()
     serializer_class = UsuarioSerializer
-    permission_classes = [permissions.DjangoModelPermissions] 
+    permission_classes = [StrictDjangoModelPermissions] 
 
     @action(detail=False, methods=['get'])
     def perfil(self, request):
