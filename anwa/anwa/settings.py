@@ -68,6 +68,12 @@ CSRF_TRUSTED_ORIGINS = [
     "https://anwabackend.duckdns.org"
 ]
 
+AUTHENTICATION_BACKENDS = [
+    'anwa.api.backends.CaseInsensitiveEmailBackend',  
+    'django.contrib.auth.backends.ModelBackend',   
+]
+
+
 CORS_ALLOW_ALL_ORIGINS = True
 
 ROOT_URLCONF = 'anwa.urls'

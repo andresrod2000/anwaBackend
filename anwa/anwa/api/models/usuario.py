@@ -7,7 +7,7 @@ class UsuarioManager(BaseUserManager):
         if not correo:
             raise ValueError("El usuario debe tener un correo electrónico")
         
-        usuario = self.model(correo=self.normalize_email(correo), nombre=nombre)
+        usuario = self.model(correo=self.normalize_email(correo).lower(), nombre=nombre)
         
         if contrasena:  # Solo aplicar si hay contraseña
             usuario.set_password(contrasena)  # Hashea la contraseña
