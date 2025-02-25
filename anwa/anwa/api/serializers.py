@@ -16,11 +16,14 @@ class RolesSerializer(serializers.ModelSerializer):
 
 
 class UsuarioSerializer(serializers.ModelSerializer):
+    rol = serializers.SerializerMethodField() 
     class Meta:
         model = Usuario
-        fields = ['id', 'correo', 'nombre', 'telefono', 'direccion', 'password', 'roles']  
+        fields = ['id', 'correo', 'nombre', 'telefono', 'direccion', 'password', 'roles','rol']  
         extra_kwargs = {'password': {'write_only': True}}  # Ocultar password en respuestas
-
+    def get_rol(self, obj):
+        return ", ".join(obj.roles.values_list('nombre', flat=True))  # Retorna los nombres de los roles como string separado por comas
+    
     def create(self, validated_data):
         """Crear usuario asegurando que la contraseña sea hasheada y los roles se asignen correctamente"""
         roles_data = validated_data.pop('roles', [])  # Extraer roles antes de crear el usuario
