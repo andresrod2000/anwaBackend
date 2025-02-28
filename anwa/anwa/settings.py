@@ -81,6 +81,22 @@ AUTHENTICATION_BACKENDS = [
 
 
 CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_CREDENTIALS = True  # Permite credenciales (si usas autenticación con cookies)
+
+CORS_ALLOW_METHODS = [
+    "GET",
+    "POST",
+    "PUT",
+    "PATCH",
+    "DELETE",
+    "OPTIONS"
+]
+
+CORS_ALLOW_HEADERS = [
+    "Authorization",
+    "Content-Type",
+    "X-CSRFToken"
+]
 
 ROOT_URLCONF = 'anwa.urls'
 
