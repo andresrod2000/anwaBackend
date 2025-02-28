@@ -45,13 +45,13 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
 ]
 
 REST_FRAMEWORK = {
@@ -72,6 +72,12 @@ AUTHENTICATION_BACKENDS = [
     'anwa.api.backends.CaseInsensitiveEmailBackend',  
     'django.contrib.auth.backends.ModelBackend',   
 ]
+
+# CORS_ALLOWED_ORIGINS = [
+#     "http://localhost:3000",  # React en desarrollo
+#     "https://anwabackend.duckdns.org",  # Tu backend en producción
+#     "https://tu-frontend.com",  # Si tienes un frontend en producción
+# ]
 
 
 CORS_ALLOW_ALL_ORIGINS = True
