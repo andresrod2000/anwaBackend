@@ -1,6 +1,8 @@
 from rest_framework import viewsets, permissions
 from rest_framework.response import Response
 from rest_framework.decorators import action
+import requests
+from django.http import JsonResponse
 from .models import (
     Usuario,
     Roles,
@@ -77,3 +79,13 @@ class DocumentoViewSet(viewsets.ModelViewSet):
 class TransaccionViewSet(viewsets.ModelViewSet):
     queryset = Transaccion.objects.all()
     serializer_class = TransaccionSerializer
+
+def get_phrase_of_the_day(request):
+    url = "https://frasedeldia.azurewebsites.net/api/phrase"  # URL de la API original
+
+    try:
+        response = requests.get(url)  # Hacer la solicitud a la API original
+        data = response.json()  # Convertir la respuesta a JSON
+        return JsonResponse(data)  # Devolver la respuesta JSON
+    except requests.exceptions.RequestException as e:
+        return JsonResponse({"error": "Error fetching the phrase"}, status=500)
