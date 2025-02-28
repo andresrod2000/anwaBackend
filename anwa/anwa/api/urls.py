@@ -9,6 +9,7 @@ from .views import (
     DocumentoViewSet,
     TransaccionViewSet,
     PerfilViewSet,
+    get_phrase_of_the_day
 )
 
 router = DefaultRouter()
@@ -22,6 +23,7 @@ router.register(r'transacciones', TransaccionViewSet)
 
 urlpatterns = [
     path('', include(router.urls)),
-    path('user/', PerfilViewSet.as_view({'get': 'perfil'}), name='user_profile'),  # Nueva ruta para obtener el usuario autenticado
+    path('user/', PerfilViewSet.as_view({'get': 'perfil'}), name='user_profile'),
+    path("api/phrase/", get_phrase_of_the_day),  # Ruta del nuevo endpoint  # Nueva ruta para obtener el usuario autenticado
 ]
 
