@@ -65,7 +65,8 @@ REST_FRAMEWORK = {
 
 
 CSRF_TRUSTED_ORIGINS = [
-    "https://anwabackend.duckdns.org"
+    "https://anwabackend.duckdns.org",
+    "https://backend.anwa.pro"
 ]
 
 AUTHENTICATION_BACKENDS = [
