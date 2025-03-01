@@ -1,6 +1,8 @@
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
-
+from django.db.models.signals import m2m_changed
+from django.dispatch import receiver
+from django.db import transaction
 class UsuarioManager(BaseUserManager):
     def create_user(self, correo, nombre, contrasena=None):
         """Crea un usuario normal con correo y contraseña"""
@@ -29,6 +31,11 @@ class Roles(models.Model):
     id = models.AutoField(primary_key=True)  # Definir el campo id correctamente
     nombre = models.CharField(max_length=255, unique=True)
     descripcion = models.TextField(blank=True, null=True)
+    grupo = models.ForeignKey(
+    "auth.Group", on_delete=models.SET_NULL, null=True, blank=True,
+    help_text="Grupo de Django asociado a este rol"
+)
+
 
     def __str__(self):
         return self.nombre
@@ -77,3 +84,24 @@ class Clientes(models.Model):
 
     def __str__(self):
         return self.nombre
+    
+@receiver(m2m_changed, sender=Usuario.roles.through)
+def asignar_grupo_por_rol(sender, instance, action, **kwargs):
+    if action in ["post_add", "post_remove", "post_clear"]:
+        transaction.on_commit(lambda: actualizar_grupos(instance))
+
+def actualizar_grupos(instance):
+    grupos_actuales = set(instance.groups.all())
+    nuevos_grupos = set()
+
+    for rol in instance.roles.all():
+        if rol.grupo:
+            nuevos_grupos.add(rol.grupo)
+
+    # Agregar nuevos grupos
+    for grupo in nuevos_grupos - grupos_actuales:
+        instance.groups.add(grupo)
+
+    # Remover grupos que ya no aplican
+    for grupo in grupos_actuales - nuevos_grupos:
+        instance.groups.remove(grupo)
