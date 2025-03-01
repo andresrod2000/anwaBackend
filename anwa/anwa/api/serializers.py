@@ -7,6 +7,7 @@ from .models import (
     Movimiento,
     Documento,
     Transaccion,
+    Pedido,
 )
 
 class RolesSerializer(serializers.ModelSerializer):
@@ -70,3 +71,8 @@ class TransaccionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Transaccion
         fields = '__all__'
+        
+class PedidoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Pedido
+        fields = ['nombre_cliente', 'fecha_hora', 'estado_pedido', 'direccion_domicilio']

@@ -2,6 +2,7 @@ from rest_framework import viewsets, permissions
 from rest_framework.response import Response
 from rest_framework.decorators import action
 import requests
+from rest_framework import generics
 from django.http import JsonResponse
 from .models import (
     Usuario,
@@ -11,6 +12,7 @@ from .models import (
     Movimiento,
     Documento,
     Transaccion,
+    Pedido
 )
 from .serializers import (
     UsuarioSerializer,
@@ -20,6 +22,7 @@ from .serializers import (
     MovimientoSerializer,
     DocumentoSerializer,
     TransaccionSerializer,
+    PedidoSerializer
 )
 
 class RolesViewSet(viewsets.ModelViewSet):
@@ -89,3 +92,12 @@ def get_phrase_of_the_day(request):
         return JsonResponse(data)  # Devolver la respuesta JSON
     except requests.exceptions.RequestException as e:
         return JsonResponse({"error": "Error fetching the phrase"}, status=500)
+
+
+class PedidoEnProcesoListView(generics.ListAPIView):
+    serializer_class = PedidoSerializer
+    permission_classes = [permissions.AllowAny] #SOLO PARA TESTAR
+
+
+    def get_queryset(self):
+        return Pedido.objects.filter(estado_pedido__in=['en_preparacion', 'en_camino'])
