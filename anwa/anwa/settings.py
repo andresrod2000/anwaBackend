@@ -179,6 +179,6 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 AUTH_USER_MODEL = 'api.Usuario'
 
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),  # Por ejemplo, 30 minutos
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),  # Por ejemplo, 30 minutos
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),  # Por ejemplo, 7 días
 }
