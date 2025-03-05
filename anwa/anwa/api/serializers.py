@@ -76,3 +76,15 @@ class PedidoSerializer(serializers.ModelSerializer):
     class Meta:
         model = Pedido
         fields = ['nombre_cliente', 'fecha_hora', 'estado_pedido', 'direccion_domicilio']
+
+# Serializer completo (para admins)
+class PedidoSerializerAdmin(serializers.ModelSerializer):
+    class Meta:
+        model = Pedido
+        fields = '__all__'  # Admins pueden ver y modificar todo
+
+# Serializer restringido (para meseros)
+class PedidoEstadoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Pedido
+        fields = ['estado_pedido']  # Meseros solo pueden modificar el estado

@@ -1,4 +1,4 @@
-from rest_framework import viewsets, permissions
+from rest_framework import viewsets, permissions,mixins
 from rest_framework.response import Response
 from rest_framework.decorators import action
 import requests
@@ -22,7 +22,9 @@ from .serializers import (
     MovimientoSerializer,
     DocumentoSerializer,
     TransaccionSerializer,
-    PedidoSerializer
+    PedidoSerializer,
+    PedidoSerializerAdmin,
+    PedidoEstadoSerializer
 )
 
 class RolesViewSet(viewsets.ModelViewSet):
@@ -101,3 +103,31 @@ class PedidoEnProcesoListView(generics.ListAPIView):
 
     def get_queryset(self):
         return Pedido.objects.filter(estado_pedido__in=['en_preparacion', 'en_camino'])
+    
+
+
+class PedidoViewSet(viewsets.ModelViewSet):
+    """Vista para manejar pedidos con permisos diferenciados"""
+    queryset = Pedido.objects.all()
+
+    def get_serializer_class(self):
+        """Determina qué serializer usar según la acción y el usuario"""
+        if self.action == 'partial_update':  # Si es un PATCH, verificar permisos
+            user = self.request.user
+            if user.groups.filter(name="Meseros").exists():  # Si es mesero
+                return PedidoEstadoSerializer  # Solo puede modificar estado
+        return PedidoSerializerAdmin  # Para todas las demás acciones
+
+    def get_permissions(self):
+        """Define los permisos según el rol"""
+        user = self.request.user
+
+        if user.is_superuser:  # Admins pueden hacer todo
+            return [permissions.AllowAny()]
+        
+        if user.groups.filter(name="Meseros").exists():  # Si es mesero
+            if self.action in ['list', 'create', 'partial_update']:  # Puede ver, crear y modificar estado
+                return [permissions.IsAuthenticated()]
+            return [permissions.DenyAny()]  # No puede eliminar ni modificar otros campos
+        
+        return [permissions.IsAuthenticated()]  # Otros usuarios autenticados pueden listar
