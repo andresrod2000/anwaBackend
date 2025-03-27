@@ -75,7 +75,7 @@ class TransaccionSerializer(serializers.ModelSerializer):
 class PedidoSerializer(serializers.ModelSerializer):
     class Meta:
         model = Pedido
-        fields = ['nombre_cliente', 'fecha_hora', 'estado_pedido', 'direccion_domicilio']
+        fields = ['nombre_cliente', 'telefono', 'direccion_domicilio', 'metodo_pago', 'estado_pedido', 'detalles_pedido', 'total', 'comentarios']
 
 # Serializer completo (para admins)
 class PedidoSerializerAdmin(serializers.ModelSerializer):
