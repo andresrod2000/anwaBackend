@@ -11,7 +11,8 @@ from .views import (
     PerfilViewSet,
     get_phrase_of_the_day,
     PedidoEnProcesoListView,
-    PedidoViewSet
+    PedidoViewSet,
+    ProductoListView
 )
 
 router = DefaultRouter()
@@ -30,5 +31,6 @@ urlpatterns = [
     path("api/phrase/", get_phrase_of_the_day),  # Ruta del nuevo endpoint  # Nueva ruta para obtener el usuario autenticado
     path('pedidos-en-proceso/', PedidoEnProcesoListView.as_view(), name='pedidos-en-proceso'),
     #path('gestionar-pedidos/', PedidoViewSet.as_view(), name='crear-pedido'),
+    path('productos/', ProductoListView.as_view(), name='productos-list'),
 ]
 

@@ -1,9 +1,12 @@
-from rest_framework import viewsets, permissions,mixins
+from rest_framework import viewsets, permissions,mixins,status
 from rest_framework.response import Response
 from rest_framework.decorators import action
 import requests
+from rest_framework.views import APIView
 from rest_framework import generics
 from django.http import JsonResponse
+from rest_framework.permissions import AllowAny
+
 from .models import (
     Usuario,
     Roles,
@@ -12,7 +15,8 @@ from .models import (
     Movimiento,
     Documento,
     Transaccion,
-    Pedido
+    Pedido,
+    Producto
 )
 from .serializers import (
     UsuarioSerializer,
@@ -24,7 +28,8 @@ from .serializers import (
     TransaccionSerializer,
     PedidoSerializer,
     PedidoSerializerAdmin,
-    PedidoEstadoSerializer
+    PedidoEstadoSerializer,
+    ProductoSerializer
 )
 
 class RolesViewSet(viewsets.ModelViewSet):
@@ -131,3 +136,11 @@ class PedidoViewSet(viewsets.ModelViewSet):
             return [permissions.DenyAny()]  # No puede eliminar ni modificar otros campos
         
         return [permissions.IsAuthenticated()]  # Otros usuarios autenticados pueden listar
+    
+class ProductoListView(APIView):
+    permission_classes = [AllowAny]  # Permitir acceso público
+
+    def get(self, request):
+        productos = Producto.objects.all()  # Obtiene todos los productos
+        serializer = ProductoSerializer(productos, many=True)  # Serializa los datos
+        return Response(serializer.data, status=status.HTTP_200_OK)

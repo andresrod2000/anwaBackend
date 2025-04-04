@@ -8,6 +8,7 @@ from .models import (
     Documento,
     Transaccion,
     Pedido,
+    Producto
 )
 
 class RolesSerializer(serializers.ModelSerializer):
@@ -88,3 +89,8 @@ class PedidoEstadoSerializer(serializers.ModelSerializer):
     class Meta:
         model = Pedido
         fields = ['estado_pedido']  # Meseros solo pueden modificar el estado
+
+class ProductoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Producto
+        fields = '__all__'  #
