@@ -144,3 +144,32 @@ class ProductoListView(APIView):
         productos = Producto.objects.all()  # Obtiene todos los productos
         serializer = ProductoSerializer(productos, many=True)  # Serializa los datos
         return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    
+
+class ProductoViewSet(viewsets.ModelViewSet):
+
+    """Vista para manejar pedidos con permisos diferenciados"""
+    queryset = Producto.objects.all()
+
+    def get_serializer_class(self):
+        """Determina qué serializer usar según la acción y el usuario"""
+        if self.action == 'partial_update':  # Si es un PATCH, verificar permisos
+            user = self.request.user
+            if user.groups.filter(name="Meseros").exists():  # Si es mesero
+                return ProductoSerializer  # Solo puede modificar estado
+        return ProductoSerializer  # Para todas las demás acciones
+
+    def get_permissions(self):
+        """Define los permisos según el rol"""
+        user = self.request.user
+
+        if user.is_superuser:  # Admins pueden hacer todo
+            return [permissions.AllowAny()]
+        
+        if user.groups.filter(name="Meseros").exists():  # Si es mesero
+            if self.action in ['list', 'create', 'partial_update']:  # Puede ver, crear y modificar estado
+                return [permissions.IsAuthenticated()]
+            return [permissions.DenyAny()]  # No puede eliminar ni modificar otros campos
+        
+        return [permissions.IsAuthenticated()] 

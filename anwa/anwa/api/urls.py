@@ -12,7 +12,8 @@ from .views import (
     get_phrase_of_the_day,
     PedidoEnProcesoListView,
     PedidoViewSet,
-    ProductoListView
+    ProductoListView,
+    ProductoViewSet
 )
 
 router = DefaultRouter()
@@ -24,7 +25,7 @@ router.register(r'movimientos', MovimientoViewSet)
 router.register(r'documentos', DocumentoViewSet)
 router.register(r'transacciones', TransaccionViewSet)
 router.register(r'pedidos', PedidoViewSet, basename='pedido')
-
+router.register(r'productosmod',ProductoViewSet)
 urlpatterns = [
     path('', include(router.urls)),
     path('user/', PerfilViewSet.as_view({'get': 'perfil'}), name='user_profile'),
