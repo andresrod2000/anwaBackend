@@ -5,3 +5,4 @@ from .pedidos import Pedido
 from .productos import Producto 
 from .proveedores import Proveedor
 from .caja_diario import CajaDiario
+from .productos import Producto_Categoria

@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from .models import Usuario, Inventario, Roles, Categorias, Documento, Transaccion, Movimiento,Pedido,Producto
+from .models import Usuario, Inventario, Roles, Categorias, Documento, Transaccion, Movimiento,Pedido,Producto,Producto_Categoria
 
 class UsuarioAdmin(UserAdmin):
     ordering = ['id']
@@ -29,3 +29,4 @@ admin.site.register(Transaccion)
 admin.site.register(Movimiento)
 admin.site.register(Pedido)
 admin.site.register(Producto)
+admin.site.register(Producto_Categoria)
