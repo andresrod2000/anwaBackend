@@ -91,6 +91,11 @@ class PedidoEstadoSerializer(serializers.ModelSerializer):
         fields = ['estado_pedido']  # Meseros solo pueden modificar el estado
 
 class ProductoSerializer(serializers.ModelSerializer):
+    categoria_nombre = serializers.SerializerMethodField()
+
     class Meta:
         model = Producto
-        fields = '__all__'  #
+        fields = '__all__'
+
+    def get_categoria_nombre(self, obj):
+        return obj.categoria.nombre if obj.categoria else None
