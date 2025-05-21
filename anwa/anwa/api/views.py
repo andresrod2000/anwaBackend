@@ -8,6 +8,9 @@ from django.http import JsonResponse
 from rest_framework.permissions import AllowAny
 import os
 import json
+from django.http import HttpResponse
+from django.views.decorators.csrf import csrf_exempt
+
 from .models import (
     Usuario,
     Roles,
@@ -177,34 +180,26 @@ class ProductoViewSet(viewsets.ModelViewSet):
     
 VERIFY_TOKEN = os.getenv('META_TOKEN')
 print("🔑 Token de verificación:", VERIFY_TOKEN)
-class WhatsAppWebhookView(APIView):
 
-    authentication_classes = []
-    permission_classes = [AllowAny]
+@csrf_exempt
+def whatsapp_webhook(request):
+    if request.method == "GET":
+        mode = request.GET.get("hub.mode")
+        token = request.GET.get("hub.verify_token")
+        challenge = request.GET.get("hub.challenge")
 
-    def get(self, request, *args, **kwargs):
-        mode = request.query_params.get('hub.mode')
-        token = request.query_params.get('hub.verify_token')
-        challenge = request.query_params.get('hub.challenge')
-        print("🔍 Verificando webhook..."
-              f"Modo: {mode}, Token: {token}, Desafío: {challenge}")
-        if mode == 'subscribe' and token == VERIFY_TOKEN:
-            print("✅ Webhook verificado correctamente")
-            return Response(challenge, status=status.HTTP_200_OK)
+        if mode == "subscribe" and token == VERIFY_TOKEN:
+            return HttpResponse(challenge)
         else:
-            print("❌ Verificación fallida")
-            return Response("Verification failed", status=status.HTTP_403_FORBIDDEN)
+            return HttpResponse("Forbidden", status=403)
 
-    def post(self, request, *args, **kwargs):
-        data = request.data
-        print("📨 Nuevo mensaje recibido:")
-        print(json.dumps(data, indent=2))
-
+    elif request.method == "POST":
         try:
+            data = json.loads(request.body)
             mensaje = data["entry"][0]["changes"][0]["value"]["messages"][0]["text"]["body"]
             numero = data["entry"][0]["changes"][0]["value"]["messages"][0]["from"]
-            print(f"👤 {numero} dijo: {mensaje}")
+            print(f"Mensaje de {numero}: {mensaje}")
         except Exception as e:
-            print("⚠️ No se pudo procesar el mensaje:", e)
+            print(f"Error procesando mensaje: {e}")
 
-        return Response("EVENT_RECEIVED", status=status.HTTP_200_OK)
+        return HttpResponse("EVENT_RECEIVED", status=200)
