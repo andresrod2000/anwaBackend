@@ -10,7 +10,7 @@ import os
 import json
 from django.http import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
-
+from openai import OpenAI 
 from .models import (
     Usuario,
     Roles,
@@ -181,6 +181,44 @@ class ProductoViewSet(viewsets.ModelViewSet):
 VERIFY_TOKEN = os.getenv('META_TOKEN')
 print("🔑 Token de verificación:", VERIFY_TOKEN)
 
+OPENAI_API_KEY = os.getenv('OPENAI_KEY')
+WHATSAPP_API_URL = "https://graph.facebook.com/v16.0/644996585368566/messages"
+WHATSAPP_ACCESS_TOKEN = os.getenv('WHATSAPP_TOKEN')
+client = OpenAI(api_key=OPENAI_API_KEY)
+def generar_respuesta_openai(mensaje_usuario):
+    prompt = f"Actúa como asistente para un restaurante llamado Anwa. El usuario dice: '{mensaje_usuario}'. Responde de forma clara y amable. SOLO RESPONDE A PREGUNTA SOBRE EL RESTAURANTE ANWA. NO DES INFORMACION PERSONAL NI DE OTROS TEMAS. NO DIGAS QUE ERES UN ASISTENTE VIRTUAL. SOLO RESPONDE CON LA RESPUESTA A LA PREGUNTA DEL USUARIO."
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",  # o "gpt-3.5-turbo"
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=150,
+            temperature=0.7,
+        )
+        # La respuesta viene en response.choices[0].message.content
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        print(f"Error en OpenAI: {e}")
+        return "Lo siento, tuve un problema al procesar tu mensaje."
+
+def enviar_mensaje_whatsapp(numero, texto):
+    headers = {
+        "Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}",
+        "Content-Type": "application/json"
+    }
+    data = {
+        "messaging_product": "whatsapp",
+        "to": numero,
+        "text": {"body": texto},
+        "type": "text"
+    }
+    try:
+        r = requests.post(WHATSAPP_API_URL, headers=headers, json=data)
+        r.raise_for_status()
+        print(f"Mensaje enviado a {numero}")
+    except Exception as e:
+        print(f"Error enviando mensaje WhatsApp: {e}")
+
+
 @csrf_exempt
 def whatsapp_webhook(request):
     if request.method == "GET":
@@ -196,9 +234,19 @@ def whatsapp_webhook(request):
     elif request.method == "POST":
         try:
             data = json.loads(request.body)
-            mensaje = data["entry"][0]["changes"][0]["value"]["messages"][0]["text"]["body"]
-            numero = data["entry"][0]["changes"][0]["value"]["messages"][0]["from"]
-            print(f"Mensaje de {numero}: {mensaje}")
+            mensajes = data["entry"][0]["changes"][0]["value"].get("messages")
+            if mensajes:
+                mensaje = mensajes[0]["text"]["body"]
+                numero = mensajes[0]["from"]
+                print(f"Mensaje recibido de {numero}: {mensaje}")
+
+                # Generar respuesta con OpenAI
+                respuesta = generar_respuesta_openai(mensaje)
+
+                # Enviar respuesta al usuario vía WhatsApp
+                enviar_mensaje_whatsapp(numero, respuesta)
+            else:
+                print("No hay mensajes en la actualización recibida.")
         except Exception as e:
             print(f"Error procesando mensaje: {e}")
 
