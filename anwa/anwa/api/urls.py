@@ -13,7 +13,8 @@ from .views import (
     PedidoEnProcesoListView,
     PedidoViewSet,
     ProductoListView,
-    ProductoViewSet
+    ProductoViewSet,
+    WhatsAppWebhookView,
 )
 
 router = DefaultRouter()
@@ -33,5 +34,7 @@ urlpatterns = [
     path('pedidos-en-proceso/', PedidoEnProcesoListView.as_view(), name='pedidos-en-proceso'),
     #path('gestionar-pedidos/', PedidoViewSet.as_view(), name='crear-pedido'),
     path('productos/', ProductoListView.as_view(), name='productos-list'),
+    path('webhook/', WhatsAppWebhookView.as_view(), name='whatsapp-webhook'),
+
 ]
 
