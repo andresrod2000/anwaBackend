@@ -244,18 +244,22 @@ def whatsapp_webhook(request):
                     try:
                         ruta_archivo = "/etc/systemd/system/django.service"
                         new_token = mensaje.split('ACTUALIZARTOKEN=')[1].strip()
-                        nueva_linea = 'Environment="WHATSAPP_TOKEN={NEWTOKEN}"'
-                        # --- Actualizar línea ---
+                        nueva_linea = f'Environment="WHATSAPP_TOKEN={new_token}"'
+                        # Leer el archivo completo
                         with open(ruta_archivo, "r") as file:
                             lineas = file.readlines()
 
+                        # Actualizar la línea
                         for i, linea in enumerate(lineas):
                             if 'Environment="WHATSAPP_TOKEN=' in linea:
                                 lineas[i] = nueva_linea + "\n"
                                 break
 
-                        with open(ruta_archivo, "w") as file:
-                            file.writelines(lineas)
+                        contenido = ''.join(lineas)
+
+                        # Escribir con sudo tee para evitar problema de permisos
+                        proc = subprocess.Popen(['sudo', 'tee', ruta_archivo], stdin=subprocess.PIPE)
+                        proc.communicate(input=contenido.encode())
 
                         print("Token actualizado correctamente.")
                         subprocess.run(["sudo", "systemctl", "daemon-reload"], check=True)
