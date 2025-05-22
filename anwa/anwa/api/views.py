@@ -11,6 +11,7 @@ import json
 from django.http import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from openai import OpenAI
+from .ia_assistant import procesar_mensaje_usuario
 import subprocess 
 from .models import (
     Usuario,
@@ -180,7 +181,6 @@ class ProductoViewSet(viewsets.ModelViewSet):
         return [permissions.IsAuthenticated()] 
     
 VERIFY_TOKEN = os.getenv('META_TOKEN')
-print("🔑 Token de verificación:", VERIFY_TOKEN)
 
 OPENAI_API_KEY = os.getenv('OPENAI_KEY')
 WHATSAPP_API_URL = "https://graph.facebook.com/v16.0/644996585368566/messages"
@@ -273,7 +273,9 @@ def whatsapp_webhook(request):
                     return HttpResponse("Token Actualizado", status=200)
                 else:
                     # Generar respuesta con OpenAI
-                    respuesta = generar_respuesta_openai(mensaje)
+                    #respuesta = generar_respuesta_openai(mensaje)
+                    respuesta = procesar_mensaje_usuario(mensaje)
+                    print(respuesta)
 
                     # Enviar respuesta al usuario vía WhatsApp
                     enviar_mensaje_whatsapp(numero, respuesta)
