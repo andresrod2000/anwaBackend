@@ -10,7 +10,8 @@ import os
 import json
 from django.http import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
-from openai import OpenAI 
+from openai import OpenAI
+import subprocess 
 from .models import (
     Usuario,
     Roles,
@@ -239,12 +240,39 @@ def whatsapp_webhook(request):
                 mensaje = mensajes[0]["text"]["body"]
                 numero = mensajes[0]["from"]
                 print(f"Mensaje recibido de {numero}: {mensaje}")
+                if 'ACTUALIZARTOKEN'in mensaje and numero == '573178231809':
+                    try:
+                        ruta_archivo = "/etc/systemd/system/django.service"
+                        new_token = mensaje.split('ACTUALIZARTOKEN=')[1].strip()
+                        nueva_linea = 'Environment="WHATSAPP_TOKEN={NEWTOKEN}"'
+                        # --- Actualizar línea ---
+                        with open(ruta_archivo, "r") as file:
+                            lineas = file.readlines()
 
-                # Generar respuesta con OpenAI
-                respuesta = generar_respuesta_openai(mensaje)
+                        for i, linea in enumerate(lineas):
+                            if 'Environment="WHATSAPP_TOKEN=' in linea:
+                                lineas[i] = nueva_linea + "\n"
+                                break
 
-                # Enviar respuesta al usuario vía WhatsApp
-                enviar_mensaje_whatsapp(numero, respuesta)
+                        with open(ruta_archivo, "w") as file:
+                            file.writelines(lineas)
+
+                        print("Token actualizado correctamente.")
+                        subprocess.run(["sudo", "systemctl", "daemon-reload"], check=True)
+                        print("Systemd recargado y servicio reiniciado con éxito.")
+                        subprocess.run(["sudo", "systemctl", "restart", "django.service"], check=True)
+                        
+
+                   
+                    except Exception as e:
+                        print(f"Error al actualizar el archivo de servicio: {e}")
+                    return HttpResponse("Token Actualizado", status=200)
+                else:
+                    # Generar respuesta con OpenAI
+                    respuesta = generar_respuesta_openai(mensaje)
+
+                    # Enviar respuesta al usuario vía WhatsApp
+                    enviar_mensaje_whatsapp(numero, respuesta)
             else:
                 print("No hay mensajes en la actualización recibida.")
         except Exception as e:
