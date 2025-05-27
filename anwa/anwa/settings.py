@@ -184,5 +184,5 @@ SIMPLE_JWT = {
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),  # Por ejemplo, 7 días
 }
 
-MEDIA_URL = '../../../media/'  # URL base para acceder a archivos de medios
+MEDIA_URL = '/media/'  # URL base para acceder a archivos de medios
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')  # Carpeta donde se almacenan los archivos de medios
