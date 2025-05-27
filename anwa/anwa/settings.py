@@ -25,7 +25,8 @@ SECRET_KEY = 'django-insecure-5x^uot&ezw(tj4xab!e+m1z25ghng66&@ptzdw3+t&i2#3$i^-
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ["3.133.144.184","anwabackend.duckdns.org","127.0.0.1","backend.anwa.pro"]
+ALLOWED_HOSTS = ["3.133.144.184","anwabackend.duckdns.org","127.0.0.1","backend.anwa.pro","c635-181-55-20-83.ngrok-free.app"]
+
 
 
 # Application definition
@@ -183,5 +184,5 @@ SIMPLE_JWT = {
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),  # Por ejemplo, 7 días
 }
 
-MEDIA_URL = '/media/'  # URL base para acceder a archivos de medios
+MEDIA_URL = '../../../media/'  # URL base para acceder a archivos de medios
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')  # Carpeta donde se almacenan los archivos de medios
