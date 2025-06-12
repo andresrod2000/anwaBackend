@@ -8,7 +8,8 @@ from .models import (
     Documento,
     Transaccion,
     Pedido,
-    Producto
+    Producto,
+    Producto_Categoria
 )
 
 class RolesSerializer(serializers.ModelSerializer):
@@ -99,3 +100,9 @@ class ProductoSerializer(serializers.ModelSerializer):
 
     def get_categoria_nombre(self, obj):
         return obj.categoria.nombre if obj.categoria else None
+    
+
+class CategoriasProductoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Producto_Categoria
+        fields = '__all__'

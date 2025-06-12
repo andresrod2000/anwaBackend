@@ -22,7 +22,8 @@ from .models import (
     Documento,
     Transaccion,
     Pedido,
-    Producto
+    Producto,
+    Producto_Categoria
 )
 from .serializers import (
     UsuarioSerializer,
@@ -35,7 +36,8 @@ from .serializers import (
     PedidoSerializer,
     PedidoSerializerAdmin,
     PedidoEstadoSerializer,
-    ProductoSerializer
+    ProductoSerializer,
+    CategoriasProductoSerializer
 )
 
 class RolesViewSet(viewsets.ModelViewSet):
@@ -285,3 +287,8 @@ def whatsapp_webhook(request):
             print(f"Error procesando mensaje: {e}")
 
         return HttpResponse("EVENT_RECEIVED", status=200)
+    
+class CategoriasProductoViewSet(viewsets.ModelViewSet):
+    permission_classes = [AllowAny]
+    queryset = Producto_Categoria.objects.all()
+    serializer_class = CategoriasProductoSerializer

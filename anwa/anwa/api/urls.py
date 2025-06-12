@@ -15,6 +15,7 @@ from .views import (
     ProductoListView,
     ProductoViewSet,
     whatsapp_webhook,
+    CategoriasProductoViewSet
 )
 
 router = DefaultRouter()
@@ -27,6 +28,7 @@ router.register(r'documentos', DocumentoViewSet)
 router.register(r'transacciones', TransaccionViewSet)
 router.register(r'pedidos', PedidoViewSet, basename='pedido')
 router.register(r'productosmod',ProductoViewSet)
+router.register(r'categoriasproducto',CategoriasProductoViewSet)
 urlpatterns = [
     path('', include(router.urls)),
     path('user/', PerfilViewSet.as_view({'get': 'perfil'}), name='user_profile'),
