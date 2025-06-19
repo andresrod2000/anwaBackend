@@ -13,6 +13,7 @@ from django.views.decorators.csrf import csrf_exempt
 from openai import OpenAI
 from .ia_assistant import procesar_mensaje_usuario
 import subprocess 
+
 from .models import (
     Usuario,
     Roles,
@@ -23,7 +24,8 @@ from .models import (
     Transaccion,
     Pedido,
     Producto,
-    Producto_Categoria
+    Producto_Categoria,
+    Conversacion
 )
 from .serializers import (
     UsuarioSerializer,
@@ -185,7 +187,8 @@ class ProductoViewSet(viewsets.ModelViewSet):
 VERIFY_TOKEN = os.getenv('META_TOKEN')
 
 OPENAI_API_KEY = os.getenv('OPENAI_KEY')
-WHATSAPP_API_URL = "https://graph.facebook.com/v16.0/644996585368566/messages"
+WHATSAPP_NUMBER = os.getenv('WHATSAPP_NUMBER', '644996585368566')
+WHATSAPP_API_URL = f"https://graph.facebook.com/v16.0/{WHATSAPP_NUMBER}/messages"
 WHATSAPP_ACCESS_TOKEN = os.getenv('WHATSAPP_TOKEN')
 client = OpenAI(api_key=OPENAI_API_KEY)
 def generar_respuesta_openai(mensaje_usuario):
@@ -215,7 +218,11 @@ def enviar_mensaje_whatsapp(numero, texto):
         "type": "text"
     }
     try:
+        import time
+        t0 = time.time()
         r = requests.post(WHATSAPP_API_URL, headers=headers, json=data)
+        t1 = time.time()
+        print(f"Tiempo del POST: {t1 - t0:.2f} segundos")
         r.raise_for_status()
         print(f"Mensaje enviado a {numero}")
     except Exception as e:
@@ -275,12 +282,17 @@ def whatsapp_webhook(request):
                     return HttpResponse("Token Actualizado", status=200)
                 else:
                     # Generar respuesta con OpenAI
-                    #respuesta = generar_respuesta_openai(mensaje)
-                    respuesta = procesar_mensaje_usuario(mensaje)
+                    
+                    respuesta = procesar_mensaje_usuario(mensaje,numero)
+                    
                     print(respuesta)
 
+                    import time
+                    start = time.time() 
                     # Enviar respuesta al usuario vía WhatsApp
                     enviar_mensaje_whatsapp(numero, respuesta)
+                    end = time.time()  # Marca de tiempo final
+                    print(f"Tiempo de ejecución: {end - start:.4f} segundos")
             else:
                 print("No hay mensajes en la actualización recibida.")
         except Exception as e:

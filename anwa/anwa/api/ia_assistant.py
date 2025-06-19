@@ -3,8 +3,8 @@
 import os
 import json
 from openai import OpenAI
-from .models import Producto, Producto_Categoria, Pedido
-
+from .models import Producto, Producto_Categoria, Pedido,Conversacion
+from datetime import datetime, timedelta
 client = OpenAI(api_key=os.getenv('OPENAI_KEY'))
 
 
@@ -116,6 +116,34 @@ openai_tools = [
 
 ]
 
+def obtener_historial_conversacion(numero_telefono, limite_horas=24):
+    """Obtiene el historial de conversación de las últimas X horas"""
+    hace_x_horas = datetime.now() - timedelta(hours=limite_horas)
+    conversaciones = Conversacion.objects.filter(
+        numero_telefono=numero_telefono,
+        fecha_hora__gte=hace_x_horas
+    ).order_by('fecha_hora')
+    
+    historial = []
+    for conv in conversaciones:
+        role = "user" if conv.es_usuario else "assistant"
+        historial.append({"role": role, "content": conv.mensaje})
+    
+    return historial
+
+def guardar_mensaje_conversacion(numero_telefono, mensaje, es_usuario=True):
+    """Guarda un mensaje en el historial de conversación"""
+    Conversacion.objects.create(
+        numero_telefono=numero_telefono,
+        mensaje=mensaje,
+        es_usuario=es_usuario
+    )
+
+def limpiar_conversaciones_antiguas():
+    """Función para limpiar conversaciones más antiguas de 7 días"""
+    hace_7_dias = datetime.now() - timedelta(days=7)
+    Conversacion.objects.filter(fecha_hora__lt=hace_7_dias).delete()
+
 def obtener_lista_productos():
     productos = Producto.objects.all()
     return [{"nombre": p.nombre, "precio": str(p.precio)} for p in productos]
@@ -207,61 +235,86 @@ def obtener_metodos_pago():
 
 
 # 💬 Procesar mensaje del usuario
-def procesar_mensaje_usuario(mensaje_usuario):
+def procesar_mensaje_usuario(mensaje_usuario,numero_telefono):
     try:
+        
+        guardar_mensaje_conversacion(numero_telefono, mensaje_usuario, True) #Guarda el mensaje del usuario
+        historial = obtener_historial_conversacion(numero_telefono) #Obtiene el historial de conversación
+        
+         # Construir mensajes para OpenAI incluyendo el historial
+        mensajes = [
+            {
+                "role": "system",
+                "content": (
+                    "Eres un asistente virtual del restaurante Anwa. "
+                    "Recuerda el contexto de la conversación anterior con este cliente. "
+                    "Si el cliente mencionó productos anteriormente o está en proceso de hacer un pedido, "
+                    "ten en cuenta esa información. "
+                    "Cuando el usuario mencione explícitamente un producto o desee ordenar/comprar/realizar un pedido, "
+                    "usa la función 'realizar_pedido' con el producto mencionado en 'detalles_pedido'. "
+                    "Si el usuario solicita solo ver el menú, usa 'obtener_lista_productos'. "
+                    "Si el usuario pregunta por una categoría, usa 'obtener_productos_por_categoria'. "
+                    "Mantén un tono amable y profesional."
+                )
+            }
+        ]
+        
+        # Agregar el historial de conversación
+        mensajes.extend(historial)
+        
+        # Siempre agregar el mensaje actual (ya está guardado en BD)
+        # No agregamos aquí porque ya está incluido en el historial
+        # El historial ya contiene el mensaje actual que acabamos de guardar
+        print(mensajes)
         response = client.chat.completions.create(
             model="gpt-4o-mini",
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "Eres un asistente virtual del restaurante Anwa. "
-                        "Cuando el usuario mencione explícitamente un producto o desee ordenar/comprar/realizar un pedido, "
-                        "usa la función 'realizar_pedido' con el producto mencionado en 'detalles_pedido'. "
-                        "Si el usuario solicita solo ver el menú, usa 'obtener_lista_productos'. "
-                        "Si el usuario pregunta por una categoría, usa 'obtener_productos_por_categoria'. "
-                        "No repitas el menú si el usuario ya mencionó un producto válido. "
-                        "Solicita información faltante si es necesario."
-                    )
-                },
-                {"role": "user", "content": mensaje_usuario}
-            ],
+            messages=mensajes,
             tools=openai_tools,
-            tool_choice="auto"
+            tool_choice="auto",
+            max_tokens=500,
+            temperature=0.2
         )
-
         choice = response.choices[0]
+        respuesta_bot = ""
 
+        # 7. Procesar respuesta (igual que antes)
         if choice.finish_reason == "tool_calls":
             for tool_call in choice.message.tool_calls:
                 params = json.loads(tool_call.function.arguments)
                 print(f"Tool call: {tool_call.function.name} with params: {params}")
+                
                 if tool_call.function.name == "obtener_lista_productos":
                     resultado = obtener_lista_productos()
-                    return "Productos disponibles:\n" + "\n".join([f"- {p['nombre']}: ${p['precio']}" for p in resultado])
+                    respuesta_bot = "Productos disponibles:\n" + "\n".join([f"- {p['nombre']}: ${p['precio']}" for p in resultado])
                 elif tool_call.function.name == "obtener_productos_por_categoria":
                     resultado = obtener_productos_por_categoria(params["categoria"])
                     if resultado:
-                        return f"Productos en la categoría {params['categoria']}:\n" + "\n".join([f"- {p['nombre']}: ${p['precio']}" for p in resultado])
+                        respuesta_bot = f"Productos en la categoría {params['categoria']}:\n" + "\n".join([f"- {p['nombre']}: ${p['precio']}" for p in resultado])
                     else:
-                        return f"No hay productos en la categoría {params['categoria']}."
+                        respuesta_bot = f"No hay productos en la categoría {params['categoria']}."
                 elif tool_call.function.name == "realizar_pedido":
                     resultado = realizar_pedido(**params)
-                    return resultado["mensaje"]
+                    respuesta_bot = resultado["mensaje"]
                 elif tool_call.function.name == "consultar_estado_pedido":
                     resultado = consultar_estado_pedido(params["telefono"])
-                    return resultado.get("mensaje") or f"Estado del pedido: {resultado['estado']}, Total: ${resultado['total']}"
+                    respuesta_bot = resultado.get("mensaje") or f"Estado del pedido: {resultado['estado']}, Total: ${resultado['total']}"
                 elif tool_call.function.name == "cancelar_pedido":
                     resultado = cancelar_pedido(params["telefono"], params["motivo"])
-                    return resultado["mensaje"]
+                    respuesta_bot = resultado["mensaje"]
                 elif tool_call.function.name == "obtener_horario_atencion":
                     resultado = obtener_horario_atencion()
-                    return f"Nuestro horario de atención es: {resultado['horario']}."
+                    respuesta_bot = f"Nuestro horario de atención es: {resultado['horario']}."
                 elif tool_call.function.name == "obtener_metodos_pago":
                     resultado = obtener_metodos_pago()
-                    return "Métodos de pago aceptados:\n" + ", ".join(resultado["metodos"])
+                    respuesta_bot = "Métodos de pago aceptados:\n" + ", ".join(resultado["metodos"])
         else:
-            return choice.message.content.strip()
+            respuesta_bot = choice.message.content.strip()
+
+        # 8. Guardar la respuesta del bot
+        guardar_mensaje_conversacion(numero_telefono, respuesta_bot, False)
+        
+        return respuesta_bot
+            
     except Exception as e:
         print(f"Error en OpenAI: {e}")
         return "Lo siento, no pude procesar tu mensaje en este momento."
