@@ -6,6 +6,7 @@ class Pedido(models.Model):
         ('en_camino', 'En camino'),
         ('entregado', 'Entregado'),
         ('recibido', 'Recibido'),
+        ('cancelado', 'Cancelado'),
     ]
     
     # Campos del modelo

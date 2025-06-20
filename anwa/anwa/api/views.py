@@ -187,7 +187,7 @@ class ProductoViewSet(viewsets.ModelViewSet):
 VERIFY_TOKEN = os.getenv('META_TOKEN')
 
 OPENAI_API_KEY = os.getenv('OPENAI_KEY')
-WHATSAPP_NUMBER = os.getenv('WHATSAPP_NUMBER', '644996585368566')
+WHATSAPP_NUMBER   = os.getenv('WHATSAPP_NUMBER', '644996585368566')
 WHATSAPP_API_URL = f"https://graph.facebook.com/v16.0/{WHATSAPP_NUMBER}/messages"
 WHATSAPP_ACCESS_TOKEN = os.getenv('WHATSAPP_TOKEN')
 client = OpenAI(api_key=OPENAI_API_KEY)
@@ -228,6 +228,49 @@ def enviar_mensaje_whatsapp(numero, texto):
     except Exception as e:
         print(f"Error enviando mensaje WhatsApp: {e}")
 
+def enviar_imagen_whatsapp(numero, url_imagen, caption=""):
+    """Envía una imagen por WhatsApp usando la API de Meta"""
+    headers = {
+        "Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}",
+        "Content-Type": "application/json"
+    }
+    data = {
+        "messaging_product": "whatsapp",
+        "to": numero,
+        "type": "image",
+        "image": {
+            "link": url_imagen,
+            "caption": caption
+        }
+    }
+    try:
+        r = requests.post(WHATSAPP_API_URL, headers=headers, json=data)
+        r.raise_for_status()
+        print(f"Imagen enviada a {numero}: {url_imagen}")
+        return True
+    except Exception as e:
+        print(f"Error enviando imagen WhatsApp: {e}")
+        return False
+
+def enviar_mensaje_con_imagenes(numero, texto, imagenes, nombre_producto=None):
+    """Envía un mensaje de texto seguido de las imágenes de los productos"""
+    # Primero enviar el mensaje de texto
+    enviar_mensaje_whatsapp(numero, texto)
+    
+    # Filtrar imágenes válidas
+    imagenes_validas = [img for img in imagenes if img and img.strip()]
+    
+    if not imagenes_validas:
+        print("No hay imágenes válidas para enviar")
+        return
+    
+    # Luego enviar cada imagen con un pequeño delay
+    import time
+    for i, imagen in enumerate(imagenes_validas):
+        time.sleep(1)  # Delay de 1 segundo entre imágenes
+        # Si tenemos el nombre del producto, usarlo como caption
+        caption = f"🍔 {nombre_producto}" if nombre_producto else ""
+        enviar_imagen_whatsapp(numero, imagen, caption)
 
 @csrf_exempt
 def whatsapp_webhook(request):
@@ -290,7 +333,12 @@ def whatsapp_webhook(request):
                     import time
                     start = time.time() 
                     # Enviar respuesta al usuario vía WhatsApp
-                    enviar_mensaje_whatsapp(numero, respuesta)
+                    if isinstance(respuesta, dict) and 'imagenes' in respuesta:
+                        # Nueva estructura con imágenes
+                        enviar_mensaje_con_imagenes(numero, respuesta['texto'], respuesta['imagenes'], respuesta.get('nombre_producto'))
+                    else:
+                        # Estructura antigua (solo texto)
+                        enviar_mensaje_whatsapp(numero, respuesta)
                     end = time.time()  # Marca de tiempo final
                     print(f"Tiempo de ejecución: {end - start:.4f} segundos")
             else:
