@@ -29,7 +29,7 @@ openai_tools = [
         "type": "function",
         "function": {
             "name": "obtener_lista_productos",
-            "description": "Devuelve la lista de productos disponibles en el restaurante",
+            "description": "Devuelve la lista completa de productos disponibles. USA ESTA FUNCIÓN cuando el usuario pida ver el menú, productos disponibles, qué hay para comer, o similar.",
             "parameters": {
                 "type": "object",
                 "properties": {}
@@ -57,7 +57,7 @@ openai_tools = [
     "type": "function",
     "function": {
         "name": "realizar_pedido",
-        "description": "Registra un nuevo pedido del cliente. USA ESTA FUNCIÓN SOLO para NUEVOS pedidos cuando el usuario mencione productos específicos que quiere pedir. Si falta información, el sistema pedirá esos datos al cliente. El total se calcula automáticamente según los productos pedidos. IMPORTANTE: Esta función SIEMPRE pide confirmación del usuario, NUNCA confirma automáticamente. NUNCA uses datos del historial para completar automáticamente los campos faltantes.",
+        "description": "Registra un nuevo pedido del cliente. USA ESTA FUNCIÓN cuando el usuario proporcione información de contacto (nombre, teléfono, dirección, método de pago). Los productos pueden estar en el mensaje actual o en mensajes anteriores. IMPORTANTE: En detalles_pedido usa EXACTAMENTE los nombres de productos del menú, sin cantidades ni artículos (ej: 'Perro Especial, Bebida Clásica' no '1 Perro Especial, 1 Bebida Clásica').",
         "parameters": {
             "type": "object",
             "properties": {
@@ -65,7 +65,7 @@ openai_tools = [
                 "telefono": {"type": "string"},
                 "direccion_domicilio": {"type": "string"},
                 "metodo_pago": {"type": "string"},
-                "detalles_pedido": {"type": "string"}
+                "detalles_pedido": {"type": "string", "description": "Nombres exactos de productos separados por comas, sin cantidades (ej: 'Perro Especial, Bebida Clásica')"}
             }
             
         }
@@ -161,7 +161,7 @@ openai_tools = [
     "type": "function",
     "function": {
         "name": "confirmar_pedido",
-        "description": "Confirma o cancela un pedido pendiente. USA ESTA FUNCIÓN cuando el usuario responda 'Sí', 'No', 'confirmo', 'cancelar', 'si', 'no' después de ver un resumen de pedido. SI el mensaje del usuario es SOLO una de estas palabras, SIEMPRE usa esta función. NO uses esta función para nuevos pedidos.",
+        "description": "CONFIRMA O CANCELA un pedido pendiente. USA ESTA FUNCIÓN cuando: 1) Tu mensaje anterior mostró un resumen de pedido con ID, productos, total y preguntó '¿Confirmas este pedido?', Y 2) El usuario responde 'Sí', 'No', 'confirmo', 'cancelar'. NUNCA uses 'realizar_pedido' en este caso.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -186,19 +186,39 @@ openai_tools = [
 
 ]
 
-def obtener_historial_conversacion(numero_telefono, limite_horas=1):
+def normalizar_telefono(telefono):
+    """Normaliza el número de teléfono agregando el código de país si no está presente"""
+    if not telefono:
+        return telefono
+    
+    # Remover espacios y caracteres especiales
+    telefono_limpio = ''.join(filter(str.isdigit, str(telefono)))
+    
+    # Si no empieza con 57 (código de Colombia), agregarlo
+    if not telefono_limpio.startswith('57') and len(telefono_limpio) == 10:
+        telefono_limpio = '57' + telefono_limpio
+    
+    return telefono_limpio
+
+def obtener_historial_conversacion(numero_telefono, limite_horas=1, max_mensajes=8):
     """Obtiene el historial de conversación de las últimas X horas"""   
     hace_x_horas = datetime.now() - timedelta(hours=limite_horas)
+    
+    # Tomar los últimos mensajes y luego ordenarlos cronológicamente
     conversaciones = Conversacion.objects.filter(
         numero_telefono=numero_telefono,
         fecha_hora__gte=hace_x_horas
-    ).order_by('fecha_hora')
+    ).order_by('-fecha_hora')[:max_mensajes]  # Últimos 8 mensajes
+    
+    # Revertir para orden cronológico (más antiguo → más reciente)
+    conversaciones = reversed(list(conversaciones))
     
     historial = []
     for conv in conversaciones:
         role = "user" if conv.es_usuario else "assistant"
         historial.append({"role": role, "content": conv.mensaje})
     
+    print(f"DEBUG: Historial construido con {len(historial)} mensajes")
     return historial
 
 def guardar_mensaje_conversacion(numero_telefono, mensaje, es_usuario=True):
@@ -214,9 +234,33 @@ def limpiar_conversaciones_antiguas():
     hace_7_dias = datetime.now() - timedelta(days=7)
     Conversacion.objects.filter(fecha_hora__lt=hace_7_dias).delete()
 
+def detectar_productos_en_historial(numero_telefono, limite_mensajes=3):
+    """Detecta productos mencionados en los últimos mensajes del usuario"""
+    conversaciones = Conversacion.objects.filter(
+        numero_telefono=numero_telefono,
+        es_usuario=True
+    ).order_by('-fecha_hora')[:limite_mensajes]
+    
+    # Obtener todos los productos de la base de datos
+    productos_db = Producto.objects.filter(disponible=True)
+    productos_mentados = []
+    
+    for conv in conversaciones:
+        mensaje = conv.mensaje.lower()
+        
+        # Buscar coincidencias con productos de la base de datos
+        for producto in productos_db:
+            nombre_producto = producto.nombre.lower()
+            if nombre_producto in mensaje:
+                productos_mentados.append(producto.nombre)
+    
+    return list(set(productos_mentados))  # Eliminar duplicados
+
 def obtener_lista_productos():
     productos = Producto.objects.all()
-    return [{"nombre": p.nombre, "precio": str(p.precio)} for p in productos]
+    resultado = [{"nombre": p.nombre, "precio": str(p.precio)} for p in productos]
+    print(f"DEBUG: obtener_lista_productos devolvió {len(resultado)} productos: {resultado}")
+    return resultado
 
 def obtener_productos_por_categoria(categoria):
     try:
@@ -228,10 +272,12 @@ def obtener_productos_por_categoria(categoria):
 
 
 def realizar_pedido(**params):
+    print(f"DEBUG: realizar_pedido llamado con parámetros: {params}")
+    
     # Verificar que tengamos todos los datos necesarios
     # Ser más estricto: solo aceptar datos explícitamente proporcionados en este mensaje
     faltantes = []
-    for campo in ['nombre_cliente', 'telefono', 'direccion_domicilio', 'metodo_pago', 'detalles_pedido']:
+    for campo in ['nombre_cliente', 'telefono', 'direccion_domicilio', 'metodo_pago']:
         if campo not in params or not params[campo] or params[campo].strip() == '':
             faltantes.append(campo)
 
@@ -240,27 +286,40 @@ def realizar_pedido(**params):
             'nombre_cliente': "Por favor indícame tu nombre completo.",
             'telefono': "Por favor indícame tu número de contacto.",
             'direccion_domicilio': "Por favor indícame tu dirección de entrega.",
-            'metodo_pago': "Por favor indícame el método de pago (Efectivo, Tarjeta, Transferencia).",
-            'detalles_pedido': "Por favor dime qué deseas pedir."
+            'metodo_pago': "Por favor indícame el método de pago (Efectivo, Tarjeta, Transferencia)."
         }
         return {"mensaje": "Para procesar tu pedido necesito la siguiente información:\n" + "\n".join([preguntas[f] for f in faltantes])}
 
+    # Si no hay detalles_pedido, buscar en el historial
+    detalles_pedido = params.get('detalles_pedido', '').strip()
+    if not detalles_pedido:
+        productos_historial = detectar_productos_en_historial(params['telefono'])
+        if productos_historial:
+            detalles_pedido = ', '.join(productos_historial)
+            print(f"DEBUG: Productos detectados en historial: {productos_historial}")
+        else:
+            return {"mensaje": "Por favor dime qué deseas pedir."}
+
     # Calcular total automáticamente
-    productos_pedidos = [p.strip() for p in params['detalles_pedido'].split(',')]
+    productos_pedidos = [p.strip() for p in detalles_pedido.split(',')]
     total = 0
     productos_no_encontrados = []
     productos_encontrados = []
 
     for nombre in productos_pedidos:
+        print(f"DEBUG: Buscando producto: '{nombre}'")
+        
         try:
-            producto = Producto.objects.get(nombre__iexact=nombre)
+            producto = Producto.objects.get(nombre__iexact=nombre.strip())
             total += float(producto.precio)
             productos_encontrados.append({
                 'nombre': producto.nombre,
                 'precio': float(producto.precio)
             })
+            print(f"DEBUG: Producto encontrado: {producto.nombre} - ${producto.precio}")
         except Producto.DoesNotExist:
             productos_no_encontrados.append(nombre)
+            print(f"DEBUG: Producto NO encontrado: '{nombre}'")
 
     if productos_no_encontrados:
         return {"mensaje": f"Estos productos no fueron encontrados en el menú: {', '.join(productos_no_encontrados)}. Por favor verifica tu pedido."}
@@ -274,14 +333,14 @@ def realizar_pedido(**params):
         telefono=params['telefono'],
         direccion_domicilio=params['direccion_domicilio'],
         metodo_pago=params['metodo_pago'],
-        detalles_pedido=params['detalles_pedido'],
+        detalles_pedido=detalles_pedido,
         total=total,
         estado_pedido='pendiente'
     )
 
     # SIEMPRE mostrar resumen y pedir confirmación
     resumen = "🍽️ *Resumen de tu pedido:*\n\n"
-    resumen += f"🆔 *Pedido #{pedido.id}*\n"
+    #resumen += f"🆔 *Pedido #{pedido.id}*\n"
     resumen += f"👤 *Cliente:* {params['nombre_cliente']}\n"
     resumen += f"📞 *Teléfono:* {params['telefono']}\n"
     resumen += f"📍 *Dirección:* {params['direccion_domicilio']}\n"
@@ -390,6 +449,7 @@ def procesar_mensaje_usuario(mensaje_usuario,numero_telefono):
     try:
         
         print(f"DEBUG: Mensaje del usuario recibido: '{mensaje_usuario}'")
+        
         guardar_mensaje_conversacion(numero_telefono, mensaje_usuario, True) #Guarda el mensaje del usuario
         historial = obtener_historial_conversacion(numero_telefono) #Obtiene el historial de conversación
         
@@ -399,26 +459,18 @@ def procesar_mensaje_usuario(mensaje_usuario,numero_telefono):
                 "role": "system",
                 "content": (
                     "Eres un asistente virtual del restaurante Anwa. "
-                    "IMPORTANTE: SIEMPRE usa las funciones disponibles cuando el usuario solicite información específica. "
-                    "NO generes respuestas personalizadas para información que debe venir de las funciones. "
-                    "Reglas específicas: "
-                    "1. Si el usuario pide ver el menú completo, productos, o 'qué tienen', usa 'obtener_lista_productos' (SIN fotos) "
-                    "2. Si el usuario pregunta por una categoría específica, usa 'obtener_productos_por_categoria' (SIN fotos) "
-                    "3. Si el usuario pregunta por un producto específico, quiere ver la foto de un producto, o dice 'muéstrame X', usa 'obtener_producto_especifico' (CON foto) "
-                    "4. Para NUEVOS pedidos: Solo usa 'realizar_pedido' cuando el usuario mencione productos específicos que quiere pedir (ej: 'quiero pedir hamburguesa', 'pedir perro especial') "
-                    "5. Para CONFIRMACIONES: SIEMPRE usa 'confirmar_pedido' cuando el usuario responda 'Sí', 'No', 'confirmo', 'cancelar', 'si', 'no' después de ver un resumen de pedido "
-                    "6. SIEMPRE usa 'consultar_estado_pedido' cuando el usuario pregunte por 'estado de mi pedido', 'cómo va mi pedido', 'estado del pedido', o cualquier variación similar "
-                    "7. Si el usuario pregunta por 'mis pedidos en curso', 'qué pedidos tengo', 'todos mis pedidos', usa 'listar_pedidos_en_curso' (TODOS los pedidos activos) "
-                    "8. Si el usuario quiere cancelar, usa 'cancelar_pedido' "
-                    "9. Si el usuario pregunta por horarios, usa 'obtener_horario_atencion' "
-                    "10. Si el usuario pregunta por métodos de pago, usa 'obtener_metodos_pago' "
-                    "NUNCA inventes información del menú o productos. SIEMPRE usa las funciones para obtener datos reales. "
-                    "Para productos específicos, SIEMPRE usa 'obtener_producto_especifico' para mostrar la foto. "
-                    "Para consultas de estado de pedido, SIEMPRE usa 'consultar_estado_pedido' y NUNCA generes respuestas manuales. "
-                    "CRÍTICO: Si el usuario acaba de ver un resumen de pedido y responde 'Sí' o 'No', SIEMPRE usa 'confirmar_pedido', NUNCA 'realizar_pedido'. "
-                    "CRÍTICO: NUNCA confirmes pedidos automáticamente. SIEMPRE pide confirmación explícita del usuario. "
-                    "CRÍTICO: Para pedidos, NUNCA uses datos del historial de conversación para completar automáticamente. SIEMPRE pide todos los datos explícitamente. "
-                    "CRÍTICO: Si el mensaje del usuario es SOLO 'Sí', 'No', 'si', 'no', 'confirmo', 'cancelar', SIEMPRE usa 'confirmar_pedido'. "
+                    "IMPORTANTE: Siempre usa las funciones disponibles en lugar de generar respuestas manuales. "
+                    
+                    "REGLA CRÍTICA: Antes de elegir una función, revisa tu mensaje anterior. "
+                    "Si tu mensaje anterior contenía un resumen de pedido (con ID de pedido, productos, total y '¿Confirmas este pedido?'), "
+                    "y el usuario responde 'Sí', 'No', 'confirmo', etc., SIEMPRE usa 'confirmar_pedido'. "
+                    "NO uses 'realizar_pedido' si ya existe un resumen pendiente de confirmación. "
+                    
+                    "Usa 'obtener_lista_productos' cuando el usuario pida ver el menú. "
+                    "Usa 'realizar_pedido' SOLO para crear nuevos pedidos (primera vez con datos de contacto). "
+                    "Usa 'confirmar_pedido' para confirmar/cancelar pedidos después de mostrar resumen. "
+                    "Usa 'consultar_estado_pedido' cuando pregunte por el estado. "
+                    "Usa 'obtener_producto_especifico' para productos específicos. "
                     "Mantén un tono amable y profesional."
                 )
             }
@@ -430,14 +482,16 @@ def procesar_mensaje_usuario(mensaje_usuario,numero_telefono):
         # Siempre agregar el mensaje actual (ya está guardado en BD)
         # No agregamos aquí porque ya está incluido en el historial
         # El historial ya contiene el mensaje actual que acabamos de guardar
-        print(mensajes)
+        #print(mensajes)
+        print(f"DEBUG: Enviando a OpenAI - Mensaje: '{mensaje_usuario}'")
+        print(f"DEBUG: Historial de conversación: {len(historial)} mensajes")
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=mensajes,
             tools=openai_tools,
             tool_choice="auto",
             max_tokens=1000,
-            temperature=0.1
+            temperature=0.0
         )
         choice = response.choices[0]
         respuesta_bot = ""
@@ -450,103 +504,116 @@ def procesar_mensaje_usuario(mensaje_usuario,numero_telefono):
         if choice.message.tool_calls:
             print(f"Tool calls: {choice.message.tool_calls}")
             print(f"Number of tool calls: {len(choice.message.tool_calls)}")
+        else:
+            print("DEBUG: No se usaron herramientas")
+            print(f"DEBUG: Mensaje del usuario: '{mensaje_usuario}'")
 
-            # 7. Procesar respuesta (igual que antes)
-            if choice.finish_reason == "tool_calls":
-                for tool_call in choice.message.tool_calls:
-                    params = json.loads(tool_call.function.arguments)
-                    print(f"Tool call: {tool_call.function.name} with params: {params}")
-                    print(f"Processing tool call: {tool_call.function.name}")
+        # 7. Procesar respuesta (igual que antes)
+        if choice.finish_reason == "tool_calls":
+            # Solo procesar la primera función call para evitar confirmaciones automáticas
+            tool_call = choice.message.tool_calls[0]
+            params = json.loads(tool_call.function.arguments)
+            print(f"Tool call: {tool_call.function.name} with params: {params}")
+            print(f"Processing tool call: {tool_call.function.name}")
+            
+            # Para funciones que usan teléfono, usar el número del webhook
+            if tool_call.function.name in ["realizar_pedido", "consultar_estado_pedido", "listar_pedidos_en_curso", "cancelar_pedido", "confirmar_pedido"]:
+                if 'telefono' in params:
+                    # Reemplazar el teléfono del usuario con el del webhook
+                    params['telefono'] = numero_telefono
+                    print(f"DEBUG: Reemplazando teléfono del usuario '{params.get('telefono', 'N/A')}' con número del webhook: {numero_telefono}")
+            
+            if tool_call.function.name == "obtener_lista_productos":
+                resultado = obtener_lista_productos()
+                print(f"DEBUG: Resultado de obtener_lista_productos: {resultado}")
+                respuesta_bot = "Productos disponibles:\n" + "\n".join([f"- {p['nombre']}: ${p['precio']}" for p in resultado])
+                print(f"DEBUG: Respuesta formateada: '{respuesta_bot}'")
+                # No hay imágenes en la lista general de productos
+                imagenes_productos = []
+            elif tool_call.function.name == "obtener_productos_por_categoria":
+                resultado = obtener_productos_por_categoria(params["categoria"])
+                if resultado:
+                    respuesta_bot = f"Productos en la categoría {params['categoria']}:\n" + "\n".join([f"- {p['nombre']}: ${p['precio']}" for p in resultado])
+                    # No hay imágenes en la lista por categoría
+                    imagenes_productos = []
+                else:
+                    respuesta_bot = f"No hay productos en la categoría {params['categoria']}."
+                    imagenes_productos = []
+            elif tool_call.function.name == "realizar_pedido":
+                print(f"DEBUG: Procesando realizar_pedido - NUEVO pedido")
+                print(f"DEBUG: Parámetros recibidos: {params}")
+                resultado = realizar_pedido(**params)
+                print(f"DEBUG: Resultado de realizar_pedido: {resultado}")
+                respuesta_bot = resultado["mensaje"]
+                print(f"DEBUG: Respuesta final: {respuesta_bot}")
+            elif tool_call.function.name == "consultar_estado_pedido":
+                print(f"DEBUG: Procesando consultar_estado_pedido con teléfono: {params['telefono']}")
+                resultado = consultar_estado_pedido(params["telefono"])
+                print(f"DEBUG: Resultado de consultar_estado_pedido: {resultado}")
+                if "mensaje" in resultado:
+                    respuesta_bot = resultado["mensaje"]
+                else:
+                    respuesta_bot = f"📋 *Estado de tu pedido:*\n\n"
+                    respuesta_bot += f"🆔 *Pedido #{resultado['id']}*\n"
+                    respuesta_bot += f"👤 Cliente: {resultado['nombre_cliente']}\n"
+                    respuesta_bot += f"📅 Fecha: {resultado['fecha']}\n"
+                    respuesta_bot += f"📊 Estado: {resultado['estado_amigable']}\n"
+                    respuesta_bot += f"💰 Total: ${resultado['total']}\n"
+                    respuesta_bot += f"🍽️ Detalles: {resultado['detalles']}\n\n"
                     
-                    if tool_call.function.name == "obtener_lista_productos":
-                        resultado = obtener_lista_productos()
-                        respuesta_bot = "Productos disponibles:\n" + "\n".join([f"- {p['nombre']}: ${p['precio']}" for p in resultado])
-                        # No hay imágenes en la lista general de productos
-                        imagenes_productos = []
-                    elif tool_call.function.name == "obtener_productos_por_categoria":
-                        resultado = obtener_productos_por_categoria(params["categoria"])
-                        if resultado:
-                            respuesta_bot = f"Productos en la categoría {params['categoria']}:\n" + "\n".join([f"- {p['nombre']}: ${p['precio']}" for p in resultado])
-                            # No hay imágenes en la lista por categoría
-                            imagenes_productos = []
-                        else:
-                            respuesta_bot = f"No hay productos en la categoría {params['categoria']}."
-                            imagenes_productos = []
-                    elif tool_call.function.name == "realizar_pedido":
-                        print(f"DEBUG: Procesando realizar_pedido - NUEVO pedido")
-                        print(f"DEBUG: Parámetros recibidos: {params}")
-                        resultado = realizar_pedido(**params)
-                        print(f"DEBUG: Resultado de realizar_pedido: {resultado}")
-                        respuesta_bot = resultado["mensaje"]
-                        print(f"DEBUG: Respuesta final: {respuesta_bot}")
-                    elif tool_call.function.name == "consultar_estado_pedido":
-                        print(f"DEBUG: Procesando consultar_estado_pedido con teléfono: {params['telefono']}")
-                        resultado = consultar_estado_pedido(params["telefono"])
-                        print(f"DEBUG: Resultado de consultar_estado_pedido: {resultado}")
-                        if "mensaje" in resultado:
-                            respuesta_bot = resultado["mensaje"]
-                        else:
-                            respuesta_bot = f"📋 *Estado de tu pedido:*\n\n"
-                            respuesta_bot += f"🆔 *Pedido #{resultado['id']}*\n"
-                            respuesta_bot += f"👤 Cliente: {resultado['nombre_cliente']}\n"
-                            respuesta_bot += f"📅 Fecha: {resultado['fecha']}\n"
-                            respuesta_bot += f"📊 Estado: {resultado['estado_amigable']}\n"
-                            respuesta_bot += f"💰 Total: ${resultado['total']}\n"
-                            respuesta_bot += f"🍽️ Detalles: {resultado['detalles']}\n\n"
-                            
-                            # Agregar mensaje adicional según el estado
-                            if resultado['estado'] == 'recibido':
-                                respuesta_bot += "⏰ Tu pedido será preparado pronto. ¡Gracias por tu paciencia!"
-                            elif resultado['estado'] == 'en_preparacion':
-                                respuesta_bot += "🔥 Tu pedido está siendo preparado con mucho amor. ¡No tardará!"
-                            elif resultado['estado'] == 'en_camino':
-                                respuesta_bot += "🚚 ¡Tu pedido está en camino! Prepárate para disfrutar."
-                            elif resultado['estado'] == 'entregado':
-                                respuesta_bot += "🎉 ¡Disfruta tu comida! ¡Esperamos verte pronto!"
-                            elif resultado['estado'] == 'cancelado':
-                                respuesta_bot += "😔 Lamentamos que hayas cancelado. ¡Esperamos verte en otra ocasión!"
-                        print(f"DEBUG: Respuesta final: {respuesta_bot}")
-                    elif tool_call.function.name == "listar_pedidos_en_curso":
-                        resultado = listar_pedidos_en_curso(params["telefono"])
-                        if "pedidos" in resultado:
-                            respuesta_bot = "📋 *Tus pedidos en curso:*\n\n"
-                            for pedido in resultado["pedidos"]:
-                                respuesta_bot += f"• *Pedido #{pedido['id']}*\n"
-                                respuesta_bot += f"📅 Fecha: {pedido['fecha']}\n"
-                                respuesta_bot += f"📊 Estado: {pedido['estado']}\n"
-                                respuesta_bot += f"💰 Total: ${pedido['total']}\n"
-                                respuesta_bot += f"🍽️ Detalles: {pedido['detalles']}\n\n"
-                        else:
-                            respuesta_bot = resultado["mensaje"]
-                    elif tool_call.function.name == "cancelar_pedido":
-                        resultado = cancelar_pedido(params["telefono"], params["motivo"])
-                        respuesta_bot = resultado["mensaje"]
-                    elif tool_call.function.name == "obtener_horario_atencion":
-                        resultado = obtener_horario_atencion()
-                        respuesta_bot = f"Nuestro horario de atención es: {resultado['horario']}."
-                    elif tool_call.function.name == "obtener_metodos_pago":
-                        resultado = obtener_metodos_pago()
-                        respuesta_bot = "Métodos de pago aceptados:\n" + ", ".join(resultado["metodos"])
-                    elif tool_call.function.name == "obtener_producto_especifico":
-                        resultado = obtener_producto_especifico(params["nombre_producto"])
-                        if resultado:
-                            respuesta_bot = f"🍔 *{resultado['nombre']}*\n"
-                            respuesta_bot += f"💰 Precio: ${resultado['precio']}\n"
-                            respuesta_bot += f"📝 Descripción: {resultado['descripcion']}\n"
-                            respuesta_bot += f"📂 Categoría: {resultado['categoria']}\n"
-                            respuesta_bot += f"✅ Disponible: {'Sí' if resultado['disponible'] else 'No'}"
-                            # Extraer URL de imagen
-                            imagenes_productos = [resultado.get("imagen")] if resultado.get("imagen") else []
-                            nombre_producto = resultado['nombre']
-                        else:
-                            respuesta_bot = f"❌ No se encontró el producto '{params['nombre_producto']}'. Por favor verifica el nombre del producto."
-                            imagenes_productos = []
-                    elif tool_call.function.name == "confirmar_pedido":
-                        print(f"DEBUG: Procesando confirmar_pedido - confirmación de pedido existente")
-                        print(f"DEBUG: Confirmación recibida: '{params['confirmacion']}'")
-                        resultado = confirmar_pedido(params["telefono"], params["confirmacion"])
-                        print(f"DEBUG: Resultado de confirmar_pedido: {resultado}")
-                        respuesta_bot = resultado["mensaje"]
+                    # Agregar mensaje adicional según el estado
+                    if resultado['estado'] == 'recibido':
+                        respuesta_bot += "⏰ Tu pedido será preparado pronto. ¡Gracias por tu paciencia!"
+                    elif resultado['estado'] == 'en_preparacion':
+                        respuesta_bot += "🔥 Tu pedido está siendo preparado con mucho amor. ¡No tardará!"
+                    elif resultado['estado'] == 'en_camino':
+                        respuesta_bot += "🚚 ¡Tu pedido está en camino! Prepárate para disfrutar."
+                    elif resultado['estado'] == 'entregado':
+                        respuesta_bot += "🎉 ¡Disfruta tu comida! ¡Esperamos verte pronto!"
+                    elif resultado['estado'] == 'cancelado':
+                        respuesta_bot += "😔 Lamentamos que hayas cancelado. ¡Esperamos verte en otra ocasión!"
+                print(f"DEBUG: Respuesta final: {respuesta_bot}")
+            elif tool_call.function.name == "listar_pedidos_en_curso":
+                resultado = listar_pedidos_en_curso(params["telefono"])
+                if "pedidos" in resultado:
+                    respuesta_bot = "📋 *Tus pedidos en curso:*\n\n"
+                    for pedido in resultado["pedidos"]:
+                        respuesta_bot += f"• *Pedido #{pedido['id']}*\n"
+                        respuesta_bot += f"📅 Fecha: {pedido['fecha']}\n"
+                        respuesta_bot += f"📊 Estado: {pedido['estado']}\n"
+                        respuesta_bot += f"💰 Total: ${pedido['total']}\n"
+                        respuesta_bot += f"🍽️ Detalles: {pedido['detalles']}\n\n"
+                else:
+                    respuesta_bot = resultado["mensaje"]
+            elif tool_call.function.name == "cancelar_pedido":
+                resultado = cancelar_pedido(params["telefono"], params["motivo"])
+                respuesta_bot = resultado["mensaje"]
+            elif tool_call.function.name == "obtener_horario_atencion":
+                resultado = obtener_horario_atencion()
+                respuesta_bot = f"Nuestro horario de atención es: {resultado['horario']}."
+            elif tool_call.function.name == "obtener_metodos_pago":
+                resultado = obtener_metodos_pago()
+                respuesta_bot = "Métodos de pago aceptados:\n" + ", ".join(resultado["metodos"])
+            elif tool_call.function.name == "obtener_producto_especifico":
+                resultado = obtener_producto_especifico(params["nombre_producto"])
+                if resultado:
+                    respuesta_bot = f"🍔 *{resultado['nombre']}*\n"
+                    respuesta_bot += f"💰 Precio: ${resultado['precio']}\n"
+                    respuesta_bot += f"📝 Descripción: {resultado['descripcion']}\n"
+                    respuesta_bot += f"📂 Categoría: {resultado['categoria']}\n"
+                    respuesta_bot += f"✅ Disponible: {'Sí' if resultado['disponible'] else 'No'}"
+                    # Extraer URL de imagen
+                    imagenes_productos = [resultado.get("imagen")] if resultado.get("imagen") else []
+                    nombre_producto = resultado['nombre']
+                else:
+                    respuesta_bot = f"❌ No se encontró el producto '{params['nombre_producto']}'. Por favor verifica el nombre del producto."
+                    imagenes_productos = []
+            elif tool_call.function.name == "confirmar_pedido":
+                print(f"DEBUG: Procesando confirmar_pedido - confirmación de pedido existente")
+                print(f"DEBUG: Confirmación recibida: '{params['confirmacion']}'")
+                resultado = confirmar_pedido(params["telefono"], params["confirmacion"])
+                print(f"DEBUG: Resultado de confirmar_pedido: {resultado}")
+                respuesta_bot = resultado["mensaje"]
         else:
             print("DEBUG: No se usaron herramientas, generando respuesta manual")
             respuesta_bot = choice.message.content.strip()
@@ -564,23 +631,40 @@ def procesar_mensaje_usuario(mensaje_usuario,numero_telefono):
 
 def confirmar_pedido(telefono, confirmacion):
     """Confirma o cancela un pedido pendiente"""
+    print(f"DEBUG: confirmar_pedido llamado con teléfono: {telefono}, confirmación: '{confirmacion}'")
+    
     # Buscar el último pedido pendiente de este teléfono
     pedidos_pendientes = Pedido.objects.filter(
         telefono=telefono,
         estado_pedido='pendiente'
     ).order_by('-fecha_hora')
     
-    if not pedidos_pendientes.exists():
-        return {"mensaje": "No tienes pedidos pendientes de confirmación."}
+    print(f"DEBUG: Pedidos pendientes encontrados: {pedidos_pendientes.count()}")
     
-    pedido = pedidos_pendientes.first()
+    if not pedidos_pendientes.exists():
+        # Si no hay pedidos pendientes, buscar el último pedido en general
+        ultimo_pedido = Pedido.objects.filter(telefono=telefono).order_by('-fecha_hora').first()
+        if ultimo_pedido:
+            print(f"DEBUG: No hay pedidos pendientes, último pedido encontrado: #{ultimo_pedido.id} con estado: {ultimo_pedido.estado_pedido}")
+            if ultimo_pedido.estado_pedido == 'pendiente':
+                # Caso edge: el pedido podría haber sido creado justo antes
+                pedido = ultimo_pedido
+            else:
+                return {"mensaje": "No tienes pedidos pendientes de confirmación. ¿Te gustaría hacer un nuevo pedido?"}
+        else:
+            return {"mensaje": "No se encontraron pedidos con este número de teléfono. ¿Te gustaría hacer un nuevo pedido?"}
+    else:
+        pedido = pedidos_pendientes.first()
+        print(f"DEBUG: Pedido pendiente encontrado: #{pedido.id}")
     
     if confirmacion.lower() in ['sí', 'si', 'yes', 'confirmo', 'confirmar']:
         pedido.estado_pedido = 'recibido'
         pedido.save()
+        print(f"DEBUG: Pedido #{pedido.id} confirmado exitosamente")
         return {"mensaje": f"✅ Pedido #{pedido.id} confirmado exitosamente. Total: ${pedido.total:,.0f}"}
     else:
         pedido.estado_pedido = 'cancelado'
         pedido.comentarios = "Pedido cancelado por el cliente"
         pedido.save()
+        print(f"DEBUG: Pedido #{pedido.id} cancelado")
         return {"mensaje": "❌ Pedido cancelado. ¡Esperamos verte en otra ocasión!"}
