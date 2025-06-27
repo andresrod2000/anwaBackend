@@ -472,6 +472,7 @@ def procesar_mensaje_usuario(mensaje_usuario,numero_telefono):
                     "Usa 'consultar_estado_pedido' cuando pregunte por el estado. "
                     "Usa 'obtener_producto_especifico' para productos específicos. "
                     "Mantén un tono amable y profesional."
+                    "No respondas preguntas que no se relacionen al restaurante o a los productos"
                 )
             }
         ]
